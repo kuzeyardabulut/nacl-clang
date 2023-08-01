@@ -28,7 +28,6 @@
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetRegistry.h" // @LOCALMOD
-#include "llvm/NaClABI.h"
 #include <algorithm>
 #include <memory>
 using namespace clang;
@@ -713,100 +712,6 @@ public:
     this->SizeType = TargetInfo::UnsignedInt;
     this->PtrDiffType = TargetInfo::SignedInt;
     this->IntPtrType = TargetInfo::SignedInt;
-    if (NaClDontBreakABI && (Triple.getArch() == llvm::Triple::x86 || Triple.getArch() == llvm::Triple::x86_64))
-    {
-      if(Triple.getArch() == llvm::Triple::x86)
-      {
-        // not mentioned in the general settings, we explicitly set it
-        this->PointerAlign = 32;
-        this->PointerWidth = 32;
-
-        //Settings from various targets
-
-        //X86TargetInfo
-        this->LongDoubleFormat = &llvm::APFloat::x87DoubleExtended;
-
-        //X86_32TargetInfo
-        this->DoubleAlign = this->LongLongAlign = 32;
-        this->LongDoubleWidth = 96;
-        this->LongDoubleAlign = 32;
-        this->SuitableAlign = 128;
-        this->SizeType = TargetInfo::UnsignedInt;
-        this->PtrDiffType = TargetInfo::SignedInt;
-        this->IntPtrType = TargetInfo::SignedInt;
-
-        //LinuxTargetInfo
-        this->WIntType = TargetInfo::UnsignedInt;
-
-        //We should selectively enable this as well, if we are compiling for these OSes
-        // But for now we won't add it as we would need to allow the end user to specify a flag stating that they need this
-
-        // //WindowsX86_32TargetInfo
-        // WCharType = UnsignedShort;
-        // DoubleAlign = LongLongAlign = 64;
-
-        // //MicrosoftX86_32TargetInfo
-        // LongDoubleWidth = LongDoubleAlign = 64;
-        // LongDoubleFormat = &llvm::APFloat::IEEEdouble;
-
-        // //AndroidX86_32TargetInfo
-        // SuitableAlign = 32;
-        // LongDoubleWidth = 64;
-        // LongDoubleFormat = &llvm::APFloat::IEEEdouble;
-
-      }
-      else
-      {
-        // not mentioned in the general settings, we explicitly set it
-        this->DoubleAlign = 64;
-        this->LongLongAlign = 64;
-
-        //Settings from various targets
-
-        //X86TargetInfo
-        this->LongDoubleFormat = &llvm::APFloat::x87DoubleExtended;
-
-        //X86_64TargetInfo
-        const bool IsX32 = this->getTriple().getEnvironment() == llvm::Triple::GNUX32;
-        this->LongWidth = this->LongAlign = this->PointerWidth = this->PointerAlign = IsX32 ? 32 : 64;
-        this->LongDoubleWidth = 128;
-        this->LongDoubleAlign = 128;
-        this->LargeArrayMinWidth = 128;
-        this->LargeArrayAlign = 128;
-        this->SuitableAlign = 128;
-        this->SizeType    = IsX32 ? TargetInfo::UnsignedInt      : TargetInfo::UnsignedLong;
-        this->PtrDiffType = IsX32 ? TargetInfo::SignedInt        : TargetInfo::SignedLong;
-        this->IntPtrType  = IsX32 ? TargetInfo::SignedInt        : TargetInfo::SignedLong;
-        this->IntMaxType  = IsX32 ? TargetInfo::SignedLongLong   : TargetInfo::SignedLong;
-        this->Int64Type   = IsX32 ? TargetInfo::SignedLongLong   : TargetInfo::SignedLong;
-
-        //LinuxTargetInfo
-        this->WIntType = TargetInfo::UnsignedInt;
-
-        //We should selectively enable this as well, if we are compiling for these OSes
-        // But for now we won't add it as we would need to allow the end user to specify a flag stating that they need this
-
-        // //WindowsX86_64TargetInfo
-        // WCharType = UnsignedShort;
-        // LongWidth = LongAlign = 32;
-        // DoubleAlign = LongLongAlign = 64;
-        // IntMaxType = SignedLongLong;
-        // Int64Type = SignedLongLong;
-        // SizeType = UnsignedLongLong;
-        // PtrDiffType = SignedLongLong;
-        // IntPtrType = SignedLongLong;
-        // LongDoubleWidth = LongDoubleAlign = 64;
-        // LongDoubleFormat = &llvm::APFloat::IEEEdouble;
-
-        // //MicrosoftX86_64TargetInfo
-        // LongDoubleWidth = LongDoubleAlign = 64;
-        // LongDoubleFormat = &llvm::APFloat::IEEEdouble;
-
-        // //AndroidX86_64TargetInfo
-        // LongDoubleFormat = &llvm::APFloat::IEEEquad;
-
-      }
-    }
     // RegParmMax is inherited from the underlying architecture
     this->LongDoubleFormat = &llvm::APFloat::IEEEdouble;
     if (Triple.getArch() == llvm::Triple::arm) {
@@ -815,10 +720,6 @@ public:
       // Handled in X86_32's setDescriptionString.
     } else if (Triple.getArch() == llvm::Triple::x86_64) {
       this->DescriptionString = "e-m:e-p:32:32-i64:64-n8:16:32:64-S128";
-      if(NaClDontBreakABI)
-      {
-        this->DescriptionString = "e-m:e-i64:64-f80:128-n8:16:32:64-S128";
-      }
     } else if (Triple.getArch() == llvm::Triple::mipsel) {
       // Handled on mips' setDescriptionString.
     } else {
@@ -3520,13 +3421,7 @@ class X86_32TargetInfo : public X86TargetInfo {
   // @LOCALMOD-START
   virtual void setDescriptionString() {
     if (getTriple().isOSNaCl())
-    {
       DescriptionString = "e-m:e-p:32:32-i64:64-n8:16:32-S128";
-      if(NaClDontBreakABI)
-      {
-        DescriptionString = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128";
-      }
-    }
     else if (HasAlignedDouble)
       DescriptionString = "e-m:e-p:32:32-i64:64-f80:32-n8:16:32-S128";
     else
@@ -6549,100 +6444,6 @@ public:
     this->PtrDiffType = TargetInfo::SignedInt;
     this->IntPtrType = TargetInfo::SignedInt;
     this->RegParmMax = 0; // Disallow regparm
-    if (NaClDontBreakABI && (Triple.getArch() == llvm::Triple::x86 || Triple.getArch() == llvm::Triple::x86_64))
-    {
-      if(Triple.getArch() == llvm::Triple::x86)
-      {
-        // not mentioned in the general settings, we explicitly set it
-        this->PointerAlign = 32;
-        this->PointerWidth = 32;
-
-        //Settings from various targets
-
-        //X86TargetInfo
-        this->LongDoubleFormat = &llvm::APFloat::x87DoubleExtended;
-
-        //X86_32TargetInfo
-        this->DoubleAlign = this->LongLongAlign = 32;
-        this->LongDoubleWidth = 96;
-        this->LongDoubleAlign = 32;
-        this->SuitableAlign = 128;
-        this->SizeType = TargetInfo::UnsignedInt;
-        this->PtrDiffType = TargetInfo::SignedInt;
-        this->IntPtrType = TargetInfo::SignedInt;
-
-        //LinuxTargetInfo
-        this->WIntType = TargetInfo::UnsignedInt;
-
-        //We should selectively enable this as well, if we are compiling for these OSes
-        // But for now we won't add it as we would need to allow the end user to specify a flag stating that they need this
-
-        // //WindowsX86_32TargetInfo
-        // WCharType = UnsignedShort;
-        // DoubleAlign = LongLongAlign = 64;
-
-        // //MicrosoftX86_32TargetInfo
-        // LongDoubleWidth = LongDoubleAlign = 64;
-        // LongDoubleFormat = &llvm::APFloat::IEEEdouble;
-
-        // //AndroidX86_32TargetInfo
-        // SuitableAlign = 32;
-        // LongDoubleWidth = 64;
-        // LongDoubleFormat = &llvm::APFloat::IEEEdouble;
-
-      }
-      else
-      {
-        // not mentioned in the general settings, we explicitly set it
-        this->DoubleAlign = 64;
-        this->LongLongAlign = 64;
-
-        //Settings from various targets
-
-        //X86TargetInfo
-        this->LongDoubleFormat = &llvm::APFloat::x87DoubleExtended;
-
-        //X86_64TargetInfo
-        const bool IsX32 = this->getTriple().getEnvironment() == llvm::Triple::GNUX32;
-        this->LongWidth = this->LongAlign = this->PointerWidth = this->PointerAlign = IsX32 ? 32 : 64;
-        this->LongDoubleWidth = 128;
-        this->LongDoubleAlign = 128;
-        this->LargeArrayMinWidth = 128;
-        this->LargeArrayAlign = 128;
-        this->SuitableAlign = 128;
-        this->SizeType    = IsX32 ? TargetInfo::UnsignedInt      : TargetInfo::UnsignedLong;
-        this->PtrDiffType = IsX32 ? TargetInfo::SignedInt        : TargetInfo::SignedLong;
-        this->IntPtrType  = IsX32 ? TargetInfo::SignedInt        : TargetInfo::SignedLong;
-        this->IntMaxType  = IsX32 ? TargetInfo::SignedLongLong   : TargetInfo::SignedLong;
-        this->Int64Type   = IsX32 ? TargetInfo::SignedLongLong   : TargetInfo::SignedLong;
-
-        //LinuxTargetInfo
-        this->WIntType = TargetInfo::UnsignedInt;
-
-        //We should selectively enable this as well, if we are compiling for these OSes
-        // But for now we won't add it as we would need to allow the end user to specify a flag stating that they need this
-
-        // //WindowsX86_64TargetInfo
-        // WCharType = UnsignedShort;
-        // LongWidth = LongAlign = 32;
-        // DoubleAlign = LongLongAlign = 64;
-        // IntMaxType = SignedLongLong;
-        // Int64Type = SignedLongLong;
-        // SizeType = UnsignedLongLong;
-        // PtrDiffType = SignedLongLong;
-        // IntPtrType = SignedLongLong;
-        // LongDoubleWidth = LongDoubleAlign = 64;
-        // LongDoubleFormat = &llvm::APFloat::IEEEdouble;
-
-        // //MicrosoftX86_64TargetInfo
-        // LongDoubleWidth = LongDoubleAlign = 64;
-        // LongDoubleFormat = &llvm::APFloat::IEEEdouble;
-
-        // //AndroidX86_64TargetInfo
-        // LongDoubleFormat = &llvm::APFloat::IEEEquad;
-
-      }
-    }
   }
 
   void getDefaultFeatures(llvm::StringMap<bool> &Features) const override {
